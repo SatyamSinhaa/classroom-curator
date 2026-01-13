@@ -1,0 +1,34 @@
+# Common
+.env
+.DS_Store
+*.log
+failed_response.txt
+
+# Client (Node/React)
+client/node_modules/
+client/dist/
+client/build/
+client/.env
+client/.vscode/
+client/coverage/
+
+# Server (Python/FastAPI)
+server/__pycache__/
+server/*.pyc
+server/*.pyo
+server/*.pyd
+server/.python-version
+server/venv/
+server/.venv/
+server/env/
+server/.env
+server/.pytest_cache/
+server/instance/
+server/htmlcov/
+server/.vscode/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

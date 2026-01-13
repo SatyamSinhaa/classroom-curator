@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+pydantic
+requests
+PyPDF2
+youtube-transcript-api
+python-multipart
+python-dotenv
+holidays
+reportlab==4.0.7
+openai>=1.0.0
+cryptography
+pinecone
