@@ -10,16 +10,37 @@ const getAuthHeaders = async () => {
 };
 
 export async function generateQuiz(data) {
-  const headers = await getAuthHeaders();
-  const response = await axios.post(`${API_BASE_URL}/quizzes/generate`, data, { headers });
-  return response.data;
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(`${API_BASE_URL}/quizzes/generate`, {
+      topic: data.topic,
+      subject: data.subject,
+      grade: data.grade,
+      question_types: data.question_types,
+      difficulty: data.difficulty,
+      context: data.context || ""
+    }, { headers });
+    return response.data;
+  } catch (error) {
+    if (error.response?.data?.detail) {
+      throw new Error(error.response.data.detail);
+    } else {
+      throw new Error('Failed to generate quiz. Please try again.');
+    }
+  }
 }
 
 export async function saveQuiz(data) {
-  const headers = await getAuthHeaders();
-  const response = await axios.post(`${API_BASE_URL}/quizzes`, data, { headers });
-  return response.data;
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(`${API_BASE_URL}/quizzes/`, data, { headers });
+    return response.data;
+  } catch (error) {
+    console.error("Save Quiz Error:", error);
+    throw new Error('Failed to save quiz.');
+  }
 }
+
 
 export async function downloadPDF(quizId) {
   try {
@@ -29,23 +50,17 @@ export async function downloadPDF(quizId) {
       responseType: 'blob'
     });
 
-    // Create a blob download link
-    const url = window.URL.createObjectURL(response.data);
+    // Create blob link to download
+    const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `quiz-${quizId}.pdf`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    link.parentNode.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('PDF download failed:', error);
-    throw error;
+    throw new Error('Failed to download PDF');
   }
 }
 
-export async function getQuiz(quizId) {
-  const headers = await getAuthHeaders();
-  const response = await axios.get(`${API_BASE_URL}/quizzes/${quizId}`, { headers });
-  return response.data;
-}

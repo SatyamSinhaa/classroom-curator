@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict
 from ..database import get_db
 from ..models import Quiz, QuestionType, DifficultyLevel
 import sys
@@ -18,8 +18,7 @@ class QuizGenerateRequest(BaseModel):
     topic: str
     subject: str
     grade: int
-    num_questions: int
-    question_type: QuestionType
+    question_types: Dict[str, int]  # e.g. {"mcq": 5, "true_false": 3}
     difficulty: DifficultyLevel
     lesson_plan_id: Optional[int] = None
     context: Optional[str] = ""
@@ -28,8 +27,7 @@ class QuizSaveRequest(BaseModel):
     topic: str
     subject: str
     grade: int
-    num_questions: int
-    question_type: QuestionType
+    question_types: Dict[str, int]
     difficulty: DifficultyLevel
     lesson_plan_id: Optional[int] = None
     context: Optional[str] = ""
@@ -45,13 +43,16 @@ def generate_quiz(request: QuizGenerateRequest, current_teacher = Depends(get_cu
     Generate quiz questions using LLM (no database save yet).
     """
     try:
+        # Calculate total number of questions
+        total_questions = sum(request.question_types.values())
+        
         # Generate quiz using service
         quiz_data = quiz_generator.generate_quiz(
             topic=request.topic,
             subject=request.subject,
             grade=request.grade,
-            num_questions=request.num_questions,
-            question_type=request.question_type.value,
+            num_questions=total_questions,
+            question_types=request.question_types,
             difficulty=request.difficulty.value,
             context=request.context
         )
@@ -82,8 +83,8 @@ def save_quiz(request: QuizSaveRequest, current_teacher = Depends(get_current_te
             topic=request.topic,
             subject=request.subject,
             grade=request.grade,
-            num_questions=request.num_questions,
-            question_type=request.question_type,
+            num_questions=sum(request.question_types.values()),
+            question_type=QuestionType.MIXED, # Always use MIXED for new structure
             difficulty=request.difficulty,
             questions_data=request.questions_data,
             answer_key=request.answer_key,

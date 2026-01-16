@@ -9,6 +9,7 @@ class QuestionType(str, PyEnum):
     TRUE_FALSE = "true_false"
     FILL_BLANK = "fill_blank"
     ESSAY = "essay"
+    MIXED = "mixed"
 
 class DifficultyLevel(str, PyEnum):
     EASY = "easy"

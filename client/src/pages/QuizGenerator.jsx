@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import QuizForm from '../components/quiz/QuizForm';
 import QuizPreview from '../components/quiz/QuizPreview';
 import { generateQuiz, saveQuiz, downloadPDF } from '../api/quizzesApi';
+import { getTeacherTopics } from '../api/lessonPlansApi';
 
 export default function QuizGenerator() {
   const [step, setStep] = useState('form'); // 'form' | 'preview' | 'saved'
@@ -10,6 +11,20 @@ export default function QuizGenerator() {
   const [quizId, setQuizId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [topics, setTopics] = useState([]);
+
+  useEffect(() => {
+    fetchTopics();
+  }, []);
+
+  const fetchTopics = async () => {
+    try {
+      const uniqueTopics = await getTeacherTopics();
+      setTopics(uniqueTopics);
+    } catch (err) {
+      console.error("Failed to load topics", err);
+    }
+  };
 
   const handleGenerateQuiz = async (data) => {
     setLoading(true);
@@ -61,7 +76,7 @@ export default function QuizGenerator() {
       {error && <div className="error-message">{error}</div>}
 
       {step === 'form' && (
-        <QuizForm onSubmit={handleGenerateQuiz} loading={loading} />
+        <QuizForm onSubmit={handleGenerateQuiz} loading={loading} topics={topics} />
       )}
 
       {step === 'preview' && (

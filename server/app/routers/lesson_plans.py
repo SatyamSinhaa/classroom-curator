@@ -15,6 +15,42 @@ from ..auth import get_current_teacher
 
 router = APIRouter(prefix="/lesson-plans", tags=["lesson-plans"])
 
+@router.get("/topics")
+def get_teacher_topics(current_teacher: Teacher = Depends(get_current_teacher), db: Session = Depends(get_db)):
+    """
+    Get all unique topics from the teacher's lesson plans.
+    """
+    try:
+        # Query content and order by created_at desc to get most recent metadata
+        lesson_plans = db.query(LessonPlan.content).filter(
+            LessonPlan.user_id == current_teacher.id
+        ).order_by(LessonPlan.created_at.desc()).all()
+        
+        topics_map = {}
+        for lp in lesson_plans:
+            # content is already a dict because of sqlalchemy JSON type, or str if legacy
+            content = lp[0]
+            if isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except:
+                    continue
+            
+            if isinstance(content, dict):
+                # Try to find topic in various places
+                topic = content.get("topic") or content.get("title")
+                if topic and topic not in topics_map:
+                    topics_map[topic] = {
+                        "topic": topic,
+                        "subject": content.get("subject", ""),
+                        "grade": content.get("grade", "")
+                    }
+                    
+        # Return list of dicts sorted by topic name
+        return {"topics": sorted(list(topics_map.values()), key=lambda x: x["topic"])}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch topics: {str(e)}")
+
 class LessonPlanRequest(BaseModel):
     mode: str  # "topic" | "youtube"
     topic: Optional[str] = None

@@ -63,8 +63,8 @@ class QuizGenerator:
         topic: str,
         subject: str,
         grade: int,
-        num_questions: int,
-        question_type: str,  # "mcq", "short_answer", etc.
+        num_questions: int,  # Total count
+        question_types: Dict[str, int],  # e.g., {"mcq": 5, "short_answer": 3}
         difficulty: str,
         context: str = ""
     ) -> Dict[str, Any]:
@@ -79,7 +79,7 @@ class QuizGenerator:
         # Build the prompt
         prompt = self._build_prompt(
             topic, subject, grade, num_questions,
-            question_type, difficulty, context
+            question_types, difficulty, context
         )
 
         # Gemini API endpoint
@@ -96,7 +96,7 @@ class QuizGenerator:
                 "temperature": 0.7,
                 "topK": 40,
                 "topP": 0.95,
-                "maxOutputTokens": 4096,
+                "maxOutputTokens": 8192, # Increased for larger quizzes
             }
         }
 
@@ -153,46 +153,54 @@ class QuizGenerator:
             raise ValueError(f"Gemini API request failed: {str(e)}")
 
     def _build_prompt(self, topic, subject, grade, num_questions,
-                      question_type, difficulty, context):
+                      question_types: Dict[str, int], difficulty, context):
         """
         Build the LLM prompt for quiz generation.
         """
 
         type_desc = {
-            "mcq": "Multiple choice (A/B/C/D options)",
-            "short_answer": "Short answer (1-3 sentences)",
+            "mcq": "Multiple Choice (A/B/C/D)",
+            "short_answer": "Short Answer (1-3 sentences)",
             "true_false": "True/False",
-            "fill_blank": "Fill in the blank",
-            "essay": "Short essay (5-10 sentences)"
+            "fill_blank": "Fill in the Blank",
+            "essay": "Short Essay"
         }
+
+        # Build requirements string from dictionary
+        types_req_str = ""
+        for q_type, count in question_types.items():
+            if count > 0:
+                types_req_str += f"- {count} {type_desc.get(q_type, q_type)} questions\n"
 
         prompt = f"""
 Generate a {difficulty.upper()} difficulty quiz for Grade {grade} {subject} students.
 
-REQUIREMENTS:
+BASIC REQUIREMENTS:
 - Topic: {topic}
-- Number of Questions: {num_questions}
-- Question Type: {type_desc[question_type]}
+- Total Questions: {num_questions}
 - Difficulty: {difficulty.upper()}
 - Grade Level: {grade}
 {f'- Context: {context}' if context else ''}
 
+QUESTION DISTRIBUTION:
+{types_req_str}
+
 RESPONSE FORMAT (STRICT JSON):
 {{
-  "quiz_title": "Topic Name: Question Type Quiz",
+  "quiz_title": "Topic Name Quiz",
   "instructions": "Clear instructions for students",
   "questions": [
     {{
       "id": 1,
       "question_text": "...",
-      "question_type": "{question_type}",
+      "question_type": "mcq | short_answer | true_false | etc",
       "difficulty": "{difficulty}",
-      "options": [  // Only for MCQ
+      "options": [  // REQUIRED ONLY FOR MCQ
         {{"label": "A", "text": "..."}},
         {{"label": "B", "text": "..."}},
         ...
       ],
-      "correct_answer": "A",
+      "correct_answer": "A (for MCQ) or text answer",
       "explanation": "Why this answer is correct"
     }},
     ...
