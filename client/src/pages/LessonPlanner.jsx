@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
 import { generateLessonPlan } from '../api/lessonPlansApi';
+import { getClasses, createClass } from '../api/classesApi';
 import LessonPlanOutput from '../components/LessonPlanOutput';
 import HistorySidebar from '../components/HistorySidebar';
 
 const LessonPlanner = () => {
   const [mode, setMode] = useState('topic');
+  const [classes, setClasses] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [isCreatingClass, setIsCreatingClass] = useState(false);
+  const [newClassData, setNewClassData] = useState({ subject: '', grade: '' });
+
   const [formData, setFormData] = useState({
     topic: '',
     youtubeUrl: '',
@@ -16,6 +22,66 @@ const LessonPlanner = () => {
   const [lessonPlan, setLessonPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Load classes on mount
+  useEffect(() => {
+    fetchClasses();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const data = await getClasses();
+      setClasses(data);
+    } catch (err) {
+      console.error("Failed to load classes", err);
+    }
+  };
+
+  const handleCreateClass = async () => {
+    if (!newClassData.subject || !newClassData.grade) return;
+    try {
+      setLoading(true);
+      const created = await createClass({
+        subject: newClassData.subject,
+        grade: parseInt(newClassData.grade)
+      });
+      setClasses([...classes, created]);
+      setSelectedClassId(created.id);
+      setIsCreatingClass(false);
+      setNewClassData({ subject: '', grade: '' });
+      // Auto-fill grade and subject
+      setFormData(prev => ({
+        ...prev,
+        grade: created.grade,
+        subject: created.subject
+      }));
+    } catch (err) {
+      setError("Failed to create class: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClassSelect = (e) => {
+    const val = e.target.value;
+    if (val === 'new') {
+      setIsCreatingClass(true);
+      setSelectedClassId('');
+    } else {
+      setIsCreatingClass(false);
+      setSelectedClassId(val);
+      if (val) {
+        const cls = classes.find(c => c.id.toString() === val);
+        if (cls) {
+          setFormData(prev => ({
+            ...prev,
+            grade: cls.grade,
+            subject: cls.subject || ''
+          }));
+        }
+      }
+    }
+  };
 
   // Load lesson plan from localStorage on component mount and when mode changes
   useEffect(() => {
@@ -58,7 +124,8 @@ const LessonPlanner = () => {
     try {
       const data = {
         mode,
-        classDurationMins: parseInt(formData.durationMins)
+        classDurationMins: parseInt(formData.durationMins),
+        classId: selectedClassId ? parseInt(selectedClassId) : null
       };
 
       // Only include grade and subject for topic mode
@@ -125,6 +192,67 @@ const LessonPlanner = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Lesson Planner</h1>
 
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              {/* Class Selection */}
+              <div className="mb-6 border-b border-gray-200 pb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Class
+                </label>
+                <select
+                  value={isCreatingClass ? 'new' : selectedClassId}
+                  onChange={handleClassSelect}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                >
+                  <option value="">General (No specific class)</option>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      Grade {cls.grade} - {cls.subject}
+                    </option>
+                  ))}
+                  <option value="new">+ Create New Class...</option>
+                </select>
+
+                {isCreatingClass && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Create New Class</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input
+                        type="number"
+                        placeholder="Grade"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newClassData.grade}
+                        onChange={(e) => setNewClassData({ ...newClassData, grade: e.target.value })}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Subject (e.g. Science)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newClassData.subject}
+                        onChange={(e) => setNewClassData({ ...newClassData, subject: e.target.value })}
+                      />
+                    </div>
+                    <div className="mt-4 flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingClass(false);
+                          setSelectedClassId('');
+                        }}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCreateClass}
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      >
+                        Create & Select
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Mode Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-3">

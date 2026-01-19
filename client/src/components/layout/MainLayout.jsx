@@ -4,19 +4,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   Home,
   BookOpen,
-  FolderOpen,
-  Calendar,
   Clock,
-  Brain,
-  MessageSquare,
   FileText,
-  Award,
-  Settings,
   Search,
   User,
   Menu,
-  X,
-  LogOut
+  X
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -35,15 +28,9 @@ const MainLayout = () => {
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home, description: 'Central Hub' },
-    { name: 'Lesson Planner', href: '/lessons', icon: BookOpen, description: 'Lesson Management' },
-    { name: 'Unit Planner', href: '/units', icon: FolderOpen, description: 'Unit Organization' },
+    { name: 'Lesson Planner', href: '/lessons', icon: BookOpen, description: 'AI-Powered Lesson Creation' },
     { name: 'Year Plan', href: '/year-plan', icon: Clock, description: 'Academic Year Visualization' },
-    { name: 'Calendar', href: '/calendar', icon: Calendar, description: 'Interactive Schedule' },
-    { name: 'AI Prompt Assistant', href: '/prompt-assistant', icon: Brain, description: 'Smart Prompt System' },
-    { name: 'Research Assistant', href: '/research', icon: MessageSquare, description: 'AI Chat Interface' },
     { name: 'Assignments & Quizzes', href: '/assessments', icon: FileText, description: 'Assessment Builder' },
-    { name: 'Report Cards', href: '/report-cards', icon: Award, description: 'Comment Generator' },
-    { name: 'Tools & Converters', href: '/tools', icon: Settings, description: 'Productivity Utilities' },
   ];
 
   return (

@@ -6,6 +6,8 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
   const [completedItems, setCompletedItems] = useState({}); // { 'session-item': boolean }
   const [aiRefinePrompt, setAiRefinePrompt] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+  const [selectedDay, setSelectedDay] = useState('');
+  const [selectedPoint, setSelectedPoint] = useState('');
 
   // Update local state if initialLessonPlan changes (from LessonPlanner's handleSubmit)
   useEffect(() => {
@@ -250,47 +252,110 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
           <span className="mr-2">✨</span> Refine with AI
         </h3>
         <p className="text-sm text-purple-700 mb-4">
-          Want a specific change? Tell the AI to "make it more hands-on", "add more examples", or "simplify for younger students".
+          Select a specific day and point to modify, then describe your changes.
         </p>
-        <div className="flex space-x-2">
+
+        {/* Day and Point Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-purple-700 mb-2">Select Day</label>
+            <select
+              value={selectedDay}
+              onChange={(e) => {
+                setSelectedDay(e.target.value);
+                setSelectedPoint(''); // Reset point when day changes
+              }}
+              className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+              disabled={isRefining}
+            >
+              <option value="">Choose a day...</option>
+              {lessonPlan.sessions?.map((session, index) => (
+                <option key={index} value={index.toString()}>
+                  Day {session.sessionNumber}: {session.topic}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-purple-700 mb-2">Select Point</label>
+            <select
+              value={selectedPoint}
+              onChange={(e) => setSelectedPoint(e.target.value)}
+              className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+              disabled={isRefining || !selectedDay}
+            >
+              <option value="">Choose a point...</option>
+              {selectedDay !== '' && lessonPlan.sessions?.[parseInt(selectedDay)]?.timeline?.map((item, index) => (
+                <option key={index} value={index.toString()}>
+                  Point {item.itemNumber || index + 1}: {item.activity}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Change Description */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-purple-700 mb-2">Describe Your Changes</label>
           <input
             type="text"
             value={aiRefinePrompt}
             onChange={(e) => setAiRefinePrompt(e.target.value)}
-            placeholder="e.g., make this more practical"
-            className="flex-1 px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="e.g., make this more interactive, add examples, simplify the language..."
+            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             disabled={isRefining}
           />
-          <button
-            onClick={async () => {
-              if (!aiRefinePrompt.trim()) return;
-              setIsRefining(true);
-              try {
-                const { generateLessonPlan } = await import('../api/lessonPlansApi');
-                const result = await generateLessonPlan({
-                  mode: 'tweak',
-                  topic: lessonPlan.title,
-                  existingPlan: lessonPlan,
-                  lessonPlanId: lessonPlan.id,
-                  refinementPrompt: aiRefinePrompt,
-                  classDurationMins: lessonPlan.sessions?.[0]?.timeline.reduce((acc, curr) => acc + curr.duration, 0) || 40
-                });
-                setLessonPlan(result);
-                setAiRefinePrompt('');
-              } catch (err) {
-                console.error("Refinement failed:", err);
-                alert("Failed to refine: " + err.message);
-              } finally {
-                setIsRefining(false);
-              }
-            }}
-            disabled={isRefining || !aiRefinePrompt.trim()}
-            className={`px-6 py-2 rounded-lg text-white transition-colors ${isRefining || !aiRefinePrompt.trim() ? 'bg-purple-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'
-              }`}
-          >
-            {isRefining ? 'Refining...' : 'Apply Change'}
-          </button>
         </div>
+
+        <button
+          onClick={async () => {
+            if (!aiRefinePrompt.trim()) return;
+
+            const dayNum = selectedDay !== '' ? parseInt(selectedDay) + 1 : null;
+            const pointNum = selectedPoint !== '' ? parseInt(selectedPoint) + 1 : null;
+
+            let refinementPrompt = aiRefinePrompt;
+            if (dayNum && pointNum) {
+              const selectedSession = lessonPlan.sessions?.[parseInt(selectedDay)];
+              const selectedTimelineItem = selectedSession?.timeline?.[parseInt(selectedPoint)];
+              const pointActivity = selectedTimelineItem?.activity || 'Unknown Activity';
+
+              refinementPrompt = `Modify only the content and activities for Day ${dayNum}, Point ${pointNum} ("${pointActivity}"). Do not change point numbers, timing, or duration displays. ${aiRefinePrompt}`;
+            } else if (dayNum) {
+              refinementPrompt = `Modify only the content and activities for Day ${dayNum}. Do not change point numbers, timing, or duration displays. ${aiRefinePrompt}`;
+            } else {
+              refinementPrompt = `Modify only the content and activities. Do not change point numbers, timing, or duration displays. ${aiRefinePrompt}`;
+            }
+
+            setIsRefining(true);
+            try {
+              const { generateLessonPlan } = await import('../api/lessonPlansApi');
+              const result = await generateLessonPlan({
+                mode: 'tweak',
+                topic: lessonPlan.title,
+                existingPlan: lessonPlan,
+                lessonPlanId: lessonPlan.id,
+                refinementPrompt: refinementPrompt,
+                classDurationMins: lessonPlan.sessions?.[0]?.timeline.reduce((acc, curr) => acc + curr.duration, 0) || 40
+              });
+              setLessonPlan(result);
+              setAiRefinePrompt('');
+              setSelectedDay('');
+              setSelectedPoint('');
+            } catch (err) {
+              console.error("Refinement failed:", err);
+              alert("Failed to refine: " + err.message);
+            } finally {
+              setIsRefining(false);
+            }
+          }}
+          disabled={isRefining || !aiRefinePrompt.trim()}
+          className={`w-full px-6 py-2 rounded-lg text-white transition-colors ${isRefining || !aiRefinePrompt.trim() ? 'bg-purple-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'
+            }`}
+        >
+          {isRefining ? 'Refining...' : 'Apply Change'}
+        </button>
       </div>
     </div>
   );

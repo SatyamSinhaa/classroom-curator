@@ -16,15 +16,20 @@ from ..auth import get_current_teacher
 router = APIRouter(prefix="/lesson-plans", tags=["lesson-plans"])
 
 @router.get("/topics")
-def get_teacher_topics(current_teacher: Teacher = Depends(get_current_teacher), db: Session = Depends(get_db)):
+def get_teacher_topics(class_id: Optional[int] = None, current_teacher: Teacher = Depends(get_current_teacher), db: Session = Depends(get_db)):
     """
-    Get all unique topics from the teacher's lesson plans.
+    Get all unique topics from the teacher's lesson plans, optionally filtered by class_id.
     """
     try:
-        # Query content and order by created_at desc to get most recent metadata
-        lesson_plans = db.query(LessonPlan.content).filter(
+        # Build query
+        query = db.query(LessonPlan.content).filter(
             LessonPlan.user_id == current_teacher.id
-        ).order_by(LessonPlan.created_at.desc()).all()
+        )
+        
+        if class_id:
+            query = query.filter(LessonPlan.class_id == class_id)
+            
+        lesson_plans = query.order_by(LessonPlan.created_at.desc()).all()
         
         topics_map = {}
         for lp in lesson_plans:
@@ -61,6 +66,7 @@ class LessonPlanRequest(BaseModel):
     existingPlan: Optional[Dict[str, Any]] = None
     refinementPrompt: Optional[str] = None
     lessonPlanId: Optional[int] = None
+    classId: Optional[int] = None
 
 @router.post("/generate")
 def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = Depends(get_current_teacher), db: Session = Depends(get_db)):
@@ -158,7 +164,8 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
             title=lesson_plan_data.get("title", "Untitled Lesson Plan"),
             content=lesson_plan_data,
             source_type=source_type,
-            source_url=source_url
+            source_url=source_url,
+            class_id=request.classId
         )
 
         db.add(lesson_plan)

@@ -8,7 +8,7 @@ import YearPlan from './pages/YearPlan'
 import CalendarPage from './pages/CalendarPage'
 import PromptAssistant from './pages/PromptAssistant'
 import ResearchAssistant from './pages/ResearchAssistant'
-import QuizGenerator from './pages/QuizGenerator'
+import Assessments from './pages/Assessments'
 import ReportCards from './pages/ReportCards'
 import Tools from './pages/Tools'
 import Profile from './pages/Profile'
@@ -40,7 +40,7 @@ function App() {
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="prompt-assistant" element={<PromptAssistant />} />
               <Route path="research" element={<ResearchAssistant />} />
-              <Route path="assessments" element={<QuizGenerator />} />
+              <Route path="assessments" element={<Assessments />} />
               <Route path="report-cards" element={<ReportCards />} />
               <Route path="tools" element={<Tools />} />
               <Route path="*" element={<Navigate to="/" replace />} />

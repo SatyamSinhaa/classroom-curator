@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Teacher
+from ..models import Teacher, Class
+import re
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
@@ -42,6 +43,39 @@ def create_or_update_teacher_profile(
     profile_data: TeacherProfileUpdate,
     db: Session = Depends(get_db)
 ):
+    # Helper to sync profile classes to Class table
+    def sync_profile_classes(db: Session, teacher: Teacher, class_names: List[str]):
+        if not class_names:
+            return
+        
+        # cache existing classes for check (by grade + subject)
+        existing_classes = db.query(Class).filter(Class.teacher_id == teacher.id).all()
+        existing_keys = {(c.grade, c.subject) for c in existing_classes}
+        
+        for name in class_names:
+            # Parse "Grade 5 Science" -> 5, "Science"
+            # Logic: Extract first number as grade. Remaining text is subject?
+            # Or assume format "X Subject"
+            
+            grade_match = re.search(r'\d+', name)
+            grade = int(grade_match.group()) if grade_match else 0
+            
+            # Remove grade from string to find subject
+            # "Grade 5 Science" -> "Grade  Science" -> "Science"
+            # "5 Science" -> " Science" -> "Science"
+            subject_part = re.sub(r'\d+', '', name).replace("Grade", "").strip()
+            # If empty, maybe "General"?
+            subject = subject_part if subject_part else "General"
+            
+            if (grade, subject) not in existing_keys and grade != 0:
+                new_class = Class(
+                    teacher_id=teacher.id,
+                    grade=grade,
+                    subject=subject
+                )
+                db.add(new_class)
+                existing_keys.add((grade, subject)) 
+
     # Clean up the data
     def clean_list(data):
         if data is None:
@@ -68,6 +102,7 @@ def create_or_update_teacher_profile(
             teacher.subjects = clean_list(profile_data.subjects)
         if profile_data.classes is not None:
             teacher.classes = clean_list(profile_data.classes)
+            sync_profile_classes(db, teacher, teacher.classes)
         if profile_data.board is not None:
             teacher.board = profile_data.board
         if profile_data.bio is not None:
@@ -89,6 +124,9 @@ def create_or_update_teacher_profile(
             qualifications=clean_list(profile_data.qualifications)
         )
         db.add(teacher)
+        db.flush() # Ensure ID is generated
+        if profile_data.classes:
+            sync_profile_classes(db, teacher, clean_list(profile_data.classes))
 
     db.commit()
     db.refresh(teacher)
