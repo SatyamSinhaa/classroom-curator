@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Teacher, Class
+from ..models import Teacher, Class, LessonPlan
 import re
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
@@ -45,36 +45,60 @@ def create_or_update_teacher_profile(
 ):
     # Helper to sync profile classes to Class table
     def sync_profile_classes(db: Session, teacher: Teacher, class_names: List[str]):
-        if not class_names:
+        if class_names is None:
             return
         
-        # cache existing classes for check (by grade + subject)
-        existing_classes = db.query(Class).filter(Class.teacher_id == teacher.id).all()
-        existing_keys = {(c.grade, c.subject) for c in existing_classes}
-        
+        # Parse incoming names into a list of (grade, subject)
+        new_class_data = []
         for name in class_names:
-            # Parse "Grade 5 Science" -> 5, "Science"
-            # Logic: Extract first number as grade. Remaining text is subject?
-            # Or assume format "X Subject"
-            
-            grade_match = re.search(r'\d+', name)
-            grade = int(grade_match.group()) if grade_match else 0
-            
-            # Remove grade from string to find subject
-            # "Grade 5 Science" -> "Grade  Science" -> "Science"
-            # "5 Science" -> " Science" -> "Science"
-            subject_part = re.sub(r'\d+', '', name).replace("Grade", "").strip()
-            # If empty, maybe "General"?
-            subject = subject_part if subject_part else "General"
-            
-            if (grade, subject) not in existing_keys and grade != 0:
+            # Pattern to match "Grade 5 Science" or "5 Science"
+            # It looks for "Grade " (optional) followed by digits at the start.
+            match = re.match(r'^(?:Grade\s*)?(\d+)\s*(.*)$', name, re.IGNORECASE)
+            if match:
+                grade = int(match.group(1))
+                subject = match.group(2).strip()
+                if not subject:
+                    subject = "General"
+                new_class_data.append((grade, subject))
+            else:
+                # Fallback: find first number as grade
+                grade_match = re.search(r'\d+', name)
+                if grade_match:
+                    grade = int(grade_match.group())
+                    subject = re.sub(r'\d+', '', name).replace("Grade", "").replace("class", "").strip()
+                    if not subject:
+                        subject = "General"
+                    new_class_data.append((grade, subject))
+        
+        # Convert to set for easy comparison
+        new_keys = set(new_class_data)
+        
+        # Get existing classes
+        existing_classes = db.query(Class).filter(Class.teacher_id == teacher.id).all()
+        
+        # 1. Identify and remove stale classes
+        for cls in existing_classes:
+            if (cls.grade, cls.subject) not in new_keys:
+                # Set class_id to NULL in associated lesson plans to avoid orphans
+                db.query(LessonPlan).filter(LessonPlan.class_id == cls.id).update({"class_id": None})
+                db.delete(cls)
+        
+        # Flush deletions before adding/checking existing to avoid conflicts
+        db.flush()
+        
+        # Refresh existing keys after deletion
+        existing_remaining = db.query(Class).filter(Class.teacher_id == teacher.id).all()
+        existing_keys = {(c.grade, c.subject) for c in existing_remaining}
+        
+        # 2. Add new classes
+        for grade, subject in new_keys:
+            if (grade, subject) not in existing_keys:
                 new_class = Class(
                     teacher_id=teacher.id,
                     grade=grade,
                     subject=subject
                 )
                 db.add(new_class)
-                existing_keys.add((grade, subject)) 
 
     # Clean up the data
     def clean_list(data):

@@ -12,6 +12,7 @@ import Assessments from './pages/Assessments'
 import ReportCards from './pages/ReportCards'
 import Tools from './pages/Tools'
 import Profile from './pages/Profile'
+import LandingPage from './pages/LandingPage'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 
@@ -29,10 +30,15 @@ function App() {
   return (
     <BrowserRouter>
       <div className="App">
-        {user ? (
-          <Routes>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+
+          {/* Protected Routes */}
+          {user ? (
             <Route path="/" element={<MainLayout />}>
-              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="profile" element={<Profile />} />
               <Route path="lessons" element={<LessonPlanner />} />
               <Route path="units" element={<UnitPlanner />} />
@@ -43,12 +49,12 @@ function App() {
               <Route path="assessments" element={<Assessments />} />
               <Route path="report-cards" element={<ReportCards />} />
               <Route path="tools" element={<Tools />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
-          </Routes>
-        ) : (
-          <Login />
-        )}
+          ) : (
+            <Route path="*" element={<Navigate to="/" replace />} />
+          )}
+        </Routes>
       </div>
     </BrowserRouter>
   )
