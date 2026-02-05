@@ -25,22 +25,29 @@ export async function generateLessonPlan(data) {
       });
       return response.data;
     } else {
-      const response = await axios.post(`${API_BASE_URL}/lesson-plans/generate`, {
+      const payload = {
         mode: data.mode,
         topic: data.topic,
         youtubeUrl: data.youtubeUrl,
+        chapterName: data.chapterName,
+        subtopicNames: data.subtopicNames,
+        chapterId: data.chapterId,
+        subtopicIds: data.subtopicIds,
         grade: data.grade,
         subject: data.subject,
+        board: data.board,
         classDurationMins: data.classDurationMins,
         existingPlan: data.existingPlan,
         refinementPrompt: data.refinementPrompt,
-        refinementPrompt: data.refinementPrompt,
         lessonPlanId: data.lessonPlanId,
         classId: data.classId
-      }, { headers });
+      };
+
+      const response = await axios.post(`${API_BASE_URL}/lesson-plans/generate`, payload, { headers });
       return response.data;
     }
   } catch (error) {
+    console.error("API Error (generateLessonPlan):", error);
     if (error.response && error.response.data && error.response.data.detail) {
       throw new Error(error.response.data.detail);
     } else {
@@ -63,10 +70,18 @@ export async function getLessonPlan(lessonPlanId) {
   }
 }
 
-export async function getLessonPlanHistory(sourceType, limit = 10) {
+export async function getLessonPlanHistory(sourceType, classId = null, chapterId = null, limit = 10) {
   try {
     const headers = await getAuthHeaders();
-    const response = await axios.get(`${API_BASE_URL}/lesson-plans/history/${sourceType}?limit=${limit}`, { headers });
+    let url = `${API_BASE_URL}/lesson-plans/history/${sourceType}?limit=${limit}`;
+    if (classId) {
+      url += `&class_id=${classId}`;
+    }
+    if (chapterId) {
+      url += `&chapter_id=${chapterId}`;
+    }
+    console.log("getLessonPlanHistory URL:", url);
+    const response = await axios.get(url, { headers });
     return response.data;
   } catch (error) {
     if (error.response && error.response.data && error.response.data.detail) {

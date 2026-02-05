@@ -508,3 +508,126 @@ def apply_patches(original_plan: Dict[str, Any], patches_data: Dict[str, Any]) -
             print(f"Error applying patch to {path}: {str(e)}")
             
     return new_plan
+
+def generate_chapter_index(subject: str, grade: int, board: str) -> Dict[str, Any]:
+    """
+    Generate a comprehensive chapter index for a subject/grade/board combination.
+    
+    Args:
+        subject: Subject name (e.g., "Mathematics", "Science")
+        grade: Grade level (1-12)
+        board: Education board (e.g., "CBSE", "ICSE", "State Board")
+    
+    Returns:
+        Dict containing:
+        {
+            "chapters": [
+                {
+                    "chapterNumber": 1,
+                    "chapterName": "Introduction to Algebra",
+                    "description": "Basic concepts of algebra",
+                    "subtopics": [
+                        {
+                            "subtopicNumber": 1,
+                            "subtopicName": "Variables and Constants",
+                            "description": "Understanding variables"
+                        }
+                    ]
+                }
+            ]
+        }
+    """
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not configured")
+    
+    system_prompt = "You are an expert curriculum designer. Generate a comprehensive chapter index for the given subject, grade, and education board. Return ONLY valid JSON without any markdown formatting or additional text."
+    
+    user_message = f"""
+Generate a complete chapter index for the following curriculum:
+
+SUBJECT: {subject}
+GRADE: {grade}
+EDUCATION BOARD: {board}
+
+Create a comprehensive list of ALL chapters that should be covered in this subject for this grade level according to the {board} curriculum.
+
+For each chapter, include:
+1. Chapter number (sequential, starting from 1)
+2. Chapter name (clear and descriptive)
+3. Brief description of what the chapter covers
+4. List of subtopics within the chapter (typically 3-8 subtopics per chapter)
+
+For each subtopic, include:
+1. Subtopic number (sequential within the chapter, starting from 1)
+2. Subtopic name (specific and clear)
+3. Brief description of what the subtopic covers
+
+IMPORTANT GUIDELINES:
+- Be comprehensive - include ALL chapters typically taught in this subject/grade/board
+- Subtopics should be granular enough that a teacher can select specific ones to teach
+- Follow the official {board} curriculum structure
+- Use proper terminology and naming conventions for {board}
+
+REQUIRED JSON FORMAT:
+{{
+  "chapters": [
+    {{
+      "chapterNumber": 1,
+      "chapterName": "string",
+      "description": "string",
+      "subtopics": [
+        {{
+          "subtopicNumber": 1,
+          "subtopicName": "string",
+          "description": "string"
+        }}
+      ]
+    }}
+  ]
+}}
+"""
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": f"{system_prompt}\n\n{user_message}"
+            }]
+        }],
+        "generationConfig": {
+            "temperature": 0.3,  # Lower temperature for more consistent curriculum
+            "topK": 40,
+            "topP": 0.95,
+            "maxOutputTokens": 8192,
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        if "candidates" in result and len(result["candidates"]) > 0:
+            candidate = result["candidates"][0]
+            finish_reason = candidate.get("finishReason")
+            print(f"DEBUG: Chapter Index Generation - Finish Reason: {finish_reason}")
+            
+            if finish_reason == "SAFETY":
+                raise ValueError("Chapter index could not be generated due to safety filters.")
+            
+            if "content" in candidate and "parts" in candidate["content"]:
+                generated_text = candidate["content"]["parts"][0]["text"]
+                
+                # Use shared parsing utility
+                return parse_ai_json(generated_text)
+            else:
+                raise ValueError("No content in API response")
+        else:
+            raise ValueError("No candidates in API response")
+    
+    except requests.exceptions.RequestException as e:
+        raise ValueError(f"Gemini API request failed: {str(e)}")
+    except KeyError as e:
+        raise ValueError(f"Unexpected API response structure: {str(e)}")

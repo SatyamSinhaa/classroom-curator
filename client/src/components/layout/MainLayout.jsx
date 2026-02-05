@@ -29,7 +29,7 @@ const MainLayout = () => {
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: Home, description: 'Central Hub' },
     { name: 'Lesson Planner', href: '/lessons', icon: BookOpen, description: 'AI-Powered Lesson Creation' },
-    { name: 'Year Plan', href: '/year-plan', icon: Clock, description: 'Academic Year Visualization' },
+    { name: 'Syllabus Tracker', href: '/syllabus-tracker', icon: Clock, description: 'Track Teaching Progress' },
     { name: 'Assignments & Quizzes', href: '/assessments', icon: FileText, description: 'Assessment Builder' },
   ];
 
@@ -65,8 +65,8 @@ const MainLayout = () => {
                   <Link
                     to={item.href}
                     className={`group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${isActive
-                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     onClick={() => setSidebarOpen(false)}
                   >

@@ -1,32 +1,39 @@
 import { useState, useEffect } from 'react';
 import { generateLessonPlan } from '../api/lessonPlansApi';
-import { getClasses, createClass } from '../api/classesApi';
+import { getClasses } from '../api/classesApi';
+import { getOrGenerateChapterIndex, getTeachingProgress } from '../api/chapterIndexApi';
+import { getTeacherProfile } from '../api/teachersApi';
 import LessonPlanOutput from '../components/LessonPlanOutput';
 import HistorySidebar from '../components/HistorySidebar';
+import ChapterIndexView from '../components/ChapterIndexView';
+
+import { useAuth } from '../contexts/AuthContext';
 
 const LessonPlanner = () => {
-  const [mode, setMode] = useState('topic');
+  const { user } = useAuth();
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [isCreatingClass, setIsCreatingClass] = useState(false);
-  const [newClassData, setNewClassData] = useState({ subject: '', grade: '' });
+  const [selectedClass, setSelectedClass] = useState(null);
 
-  const [formData, setFormData] = useState({
-    topic: '',
-    youtubeUrl: '',
-    pdfFile: null,
-    grade: '',
-    subject: '',
-    durationMins: ''
-  });
+  // Chapter index state
+  const [chapterIndex, setChapterIndex] = useState(null);
+  const [teachingProgress, setTeachingProgress] = useState([]);
+  const [loadingIndex, setLoadingIndex] = useState(false);
+  const [indexError, setIndexError] = useState('');
+
   const [lessonPlan, setLessonPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [teacherProfile, setTeacherProfile] = useState(null);
+  const [classDuration, setClassDuration] = useState(40);
 
-  // Load classes on mount
+  // Load classes and teacher profile on mount
   useEffect(() => {
     fetchClasses();
-  }, []);
+    if (user) {
+      fetchTeacherProfile();
+    }
+  }, [user]);
 
   const fetchClasses = async () => {
     try {
@@ -37,150 +44,153 @@ const LessonPlanner = () => {
     }
   };
 
-  const handleCreateClass = async () => {
-    if (!newClassData.subject || !newClassData.grade) return;
+  const fetchTeacherProfile = async () => {
     try {
-      setLoading(true);
-      const created = await createClass({
-        subject: newClassData.subject,
-        grade: parseInt(newClassData.grade)
-      });
-      setClasses([...classes, created]);
-      setSelectedClassId(created.id);
-      setIsCreatingClass(false);
-      setNewClassData({ subject: '', grade: '' });
-      // Auto-fill grade and subject
-      setFormData(prev => ({
-        ...prev,
-        grade: created.grade,
-        subject: created.subject
-      }));
+      if (user?.id) {
+        const profile = await getTeacherProfile(user.id);
+        setTeacherProfile(profile);
+      }
     } catch (err) {
-      setError("Failed to create class: " + err.message);
-    } finally {
-      setLoading(false);
+      console.error("Failed to load teacher profile", err);
     }
   };
 
-  const handleClassSelect = (e) => {
+  const [selectedChapterId, setSelectedChapterId] = useState(null);
+
+  const handleClassSelect = async (e) => {
     const val = e.target.value;
-    if (val === 'new') {
-      setIsCreatingClass(true);
-      setSelectedClassId('');
-    } else {
-      setIsCreatingClass(false);
-      setSelectedClassId(val);
-      if (val) {
-        const cls = classes.find(c => c.id.toString() === val);
-        if (cls) {
-          setFormData(prev => ({
-            ...prev,
-            grade: cls.grade,
-            subject: cls.subject || ''
-          }));
+    console.log("Selected class ID:", val);
+    setSelectedClassId(val);
+    setChapterIndex(null);
+    setTeachingProgress([]);
+    setIndexError('');
+    setLessonPlan(null);
+    setSelectedChapterId(null);
+
+    if (val) {
+      const cls = classes.find(c => c.id.toString() === val);
+      console.log("Found class:", cls);
+      setSelectedClass(cls);
+
+      if (cls) {
+        // Build profile if missing (fallback)
+        let currentProfile = teacherProfile;
+        if (!currentProfile) {
+          console.warn("Teacher profile not loaded, attempting to fetch...");
+          if (user?.id) {
+            try {
+              currentProfile = await getTeacherProfile(user.id);
+              setTeacherProfile(currentProfile);
+              console.log("Fetched teacher profile:", currentProfile);
+            } catch (err) {
+              console.error("Failed to fetch teacher profile on selection:", err);
+            }
+          } else {
+            console.error("Cannot fetch profile: User not logged in");
+          }
+        }
+
+        if (currentProfile) {
+          // Fetch chapter index for this class
+          await loadChapterIndex(cls, currentProfile);
+        } else {
+          console.error("Cannot load chapter index: Teacher profile missing");
+          setIndexError("Could not load teacher profile. Please try refreshing the page.");
         }
       }
-    }
-  };
-
-  // Load lesson plan from localStorage on component mount and when mode changes
-  useEffect(() => {
-    const savedLessonPlan = localStorage.getItem(`lessonPlanner_${mode}`);
-    if (savedLessonPlan) {
-      try {
-        const parsedLessonPlan = JSON.parse(savedLessonPlan);
-        setLessonPlan(parsedLessonPlan);
-      } catch (error) {
-        console.error('Error parsing saved lesson plan:', error);
-        localStorage.removeItem(`lessonPlanner_${mode}`);
-        setLessonPlan(null);
-      }
     } else {
-      setLessonPlan(null);
+      setSelectedClass(null);
     }
-  }, [mode]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
-  const handleFileChange = (e) => {
-    setFormData(prev => ({
-      ...prev,
-      pdfFile: e.target.files[0]
-    }));
+  const handleChapterSelect = (chapterId) => {
+    console.log("LessonPlanner: Selected Chapter ID:", chapterId);
+    setSelectedChapterId(chapterId);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const loadChapterIndex = async (cls, profile = teacherProfile) => {
+    try {
+      setLoadingIndex(true);
+      setIndexError('');
+
+      if (!profile) {
+        throw new Error("Teacher profile not available");
+      }
+
+      // Get subject and board from teacher profile
+      const subject = cls.subject;
+      const grade = cls.grade;
+      const board = profile.board || 'CBSE'; // Default to CBSE if not set
+
+      console.log(`Loading chapter index for ${subject}, Grade ${grade}, ${board}`);
+
+      // Fetch or generate chapter index
+      const indexData = await getOrGenerateChapterIndex(subject, grade, board);
+      setChapterIndex(indexData);
+
+      // Fetch teaching progress
+      const progressData = await getTeachingProgress(cls.id);
+      setTeachingProgress(progressData.progress || []);
+
+      if (!indexData.fromCache) {
+        console.log('New chapter index generated and stored in database');
+      } else {
+        console.log('Loaded existing chapter index from database');
+      }
+    } catch (err) {
+      console.error("Failed to load chapter index", err);
+      setIndexError(err.message || 'Failed to load chapter index');
+    } finally {
+      setLoadingIndex(false);
+    }
+  };
+
+  const handleGenerateFromChapter = async ({ chapter, subtopics, subtopicIds }) => {
     setLoading(true);
     setError('');
     setLessonPlan(null);
 
     try {
-      const data = {
-        mode,
-        classDurationMins: parseInt(formData.durationMins),
-        classId: selectedClassId ? parseInt(selectedClassId) : null
-      };
-
-      // Only include grade and subject for topic mode
-      if (mode === 'topic') {
-        data.grade = parseInt(formData.grade);
-        data.subject = formData.subject;
-        data.topic = formData.topic;
-      } else if (mode === 'youtube') {
-        data.youtubeUrl = formData.youtubeUrl;
-      } else if (mode === 'pdf') {
-        data.pdfFile = formData.pdfFile;
+      if (!chapter) {
+        throw new Error("Invalid chapter data selected.");
       }
+
+      const cName = chapter.chapterName || chapter.chapter_name || chapter.name || chapter.title;
+
+      if (!cName) {
+        throw new Error("Invalid chapter name.");
+      }
+
+      const data = {
+        mode: 'chapter',
+        chapterName: cName,
+        subtopicNames: subtopics.map(st => st.subtopicName),
+        chapterId: chapter.id,
+        subtopicIds: subtopicIds,
+        grade: selectedClass.grade,
+        subject: selectedClass.subject,
+        board: teacherProfile?.board || 'CBSE',
+        classDurationMins: parseInt(classDuration),
+        classId: parseInt(selectedClassId)
+      };
 
       const result = await generateLessonPlan(data);
       setLessonPlan(result);
 
-      // Save to localStorage for persistence (mode-specific)
-      try {
-        localStorage.setItem(`lessonPlanner_${mode}`, JSON.stringify(result));
-      } catch (error) {
-        console.error('Error saving lesson plan to localStorage:', error);
-      }
+      // Refresh teaching progress
+      const progressData = await getTeachingProgress(parseInt(selectedClassId));
+      setTeachingProgress(progressData.progress || []);
     } catch (err) {
+      console.error("Lesson plan generation failed:", err);
+      // alert("Generation Failed: " + err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormValid = () => {
-    const durationValid = formData.durationMins;
-
-    if (mode === 'topic') {
-      return durationValid && formData.grade && formData.subject && formData.topic;
-    }
-    if (mode === 'youtube') {
-      return durationValid && formData.youtubeUrl;
-    }
-    if (mode === 'pdf') {
-      return durationValid && formData.pdfFile;
-    }
-    return false;
-  };
-
   const handleLoadLessonPlan = (lessonPlanData) => {
     setLessonPlan(lessonPlanData);
-    // Optionally populate form fields with the loaded lesson plan data
-    if (lessonPlanData.grade) {
-      setFormData(prev => ({
-        ...prev,
-        grade: lessonPlanData.grade.toString(),
-        subject: lessonPlanData.subject || '',
-        durationMins: lessonPlanData.durationMins ? lessonPlanData.durationMins.toString() : ''
-      }));
-    }
   };
 
   return (
@@ -191,240 +201,107 @@ const LessonPlanner = () => {
           <div className="max-w-4xl mx-auto p-6">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Lesson Planner</h1>
 
+            {/* ... (Class Selection) */}
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
               {/* Class Selection */}
-              <div className="mb-6 border-b border-gray-200 pb-6">
+              <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Class
                 </label>
                 <select
-                  value={isCreatingClass ? 'new' : selectedClassId}
+                  value={selectedClassId}
                   onChange={handleClassSelect}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">General (No specific class)</option>
+                  <option value="">Select a class to begin...</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
                       Grade {cls.grade} - {cls.subject}
                     </option>
                   ))}
-                  <option value="new">+ Create New Class...</option>
                 </select>
 
-                {isCreatingClass && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Create New Class</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {selectedClass && teacherProfile && (
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className="text-sm text-gray-600">
+                      <p>Subject: <span className="font-medium">{selectedClass.subject}</span></p>
+                      <p>Board: <span className="font-medium">{teacherProfile.board || 'Not set'}</span></p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Class Duration (mins)
+                      </label>
                       <input
                         type="number"
-                        placeholder="Grade"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={newClassData.grade}
-                        onChange={(e) => setNewClassData({ ...newClassData, grade: e.target.value })}
+                        value={classDuration}
+                        onChange={(e) => setClassDuration(e.target.value)}
+                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="10"
+                        max="240"
                       />
-                      <input
-                        type="text"
-                        placeholder="Subject (e.g. Science)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={newClassData.subject}
-                        onChange={(e) => setNewClassData({ ...newClassData, subject: e.target.value })}
-                      />
-                    </div>
-                    <div className="mt-4 flex justify-end space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingClass(false);
-                          setSelectedClassId('');
-                        }}
-                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCreateClass}
-                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                      >
-                        Create & Select
-                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Mode Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Select Source Type
-                </label>
-                <div className="flex space-x-4">
-                  {[
-                    { value: 'topic', label: 'Topic Description' },
-                    { value: 'pdf', label: 'Upload PDF' },
-                    { value: 'youtube', label: 'YouTube Video' }
-                  ].map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setMode(value)}
-                      className={`px-4 py-2 rounded-md font-medium transition-colors ${mode === value
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+              {/* Loading State */}
+              {loadingIndex && (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-gray-600">Loading chapter index...</p>
+                  <p className="text-sm text-gray-500">This may take a moment if generating for the first time</p>
                 </div>
-              </div>
+              )}
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Conditional Input Fields */}
-                {mode === 'topic' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Topic Description
-                    </label>
-                    <textarea
-                      name="topic"
-                      value={formData.topic}
-                      onChange={handleInputChange}
-                      placeholder="Describe the lesson topic in detail..."
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                )}
-
-                {mode === 'pdf' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      PDF File
-                    </label>
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    {formData.pdfFile && (
-                      <p className="mt-1 text-sm text-gray-600">
-                        Selected: {formData.pdfFile.name}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {mode === 'youtube' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      YouTube URL
-                    </label>
-                    <input
-                      type="url"
-                      name="youtubeUrl"
-                      value={formData.youtubeUrl}
-                      onChange={handleInputChange}
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                )}
-
-                {/* Metadata Fields - Only show Grade and Subject for Topic mode */}
-                {mode === 'topic' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Grade Level
-                      </label>
-                      <input
-                        type="number"
-                        name="grade"
-                        value={formData.grade}
-                        onChange={handleInputChange}
-                        min="1"
-                        max="12"
-                        placeholder="e.g., 5"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Subject
-                      </label>
-                      <input
-                        type="text"
-                        name="subject"
-                        value={formData.subject}
-                        onChange={handleInputChange}
-                        placeholder="e.g., Mathematics"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Duration Field - Always required */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Class Period Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    name="durationMins"
-                    value={formData.durationMins}
-                    onChange={handleInputChange}
-                    min="15"
-                    max="180"
-                    placeholder="e.g., 30"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+              {/* Error State */}
+              {indexError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <p className="text-red-800">{indexError}</p>
                 </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-red-800">{error}</p>
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={!isFormValid() || loading}
-                  className={`w-full py-3 px-4 rounded-md font-medium transition-colors ${isFormValid() && !loading
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                >
-                  {loading ? 'Generating Lesson Plan...' : 'Generate Lesson Plan'}
-                </button>
-              </form>
+              )}
             </div>
+
+            {/* Chapter Index View */}
+            {chapterIndex && !loadingIndex && (
+              <ChapterIndexView
+                chapters={chapterIndex.chapters}
+                teachingProgress={teachingProgress}
+                onGenerate={handleGenerateFromChapter}
+                loading={loading}
+                onChapterSelect={handleChapterSelect}
+              />
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4 mt-6">
+                <p className="text-red-800">{error}</p>
+              </div>
+            )}
 
             {/* Lesson Plan Output */}
             {lessonPlan && (
-              <LessonPlanOutput
-                lessonPlan={lessonPlan}
-                onRegenerate={handleSubmit}
-                loading={loading}
-              />
+              <div className="mt-6">
+                <LessonPlanOutput
+                  lessonPlan={lessonPlan}
+                  onRegenerate={() => {
+                    // Could implement regeneration logic here
+                  }}
+                  loading={loading}
+                />
+              </div>
             )}
           </div>
         </div>
       </div>
 
       {/* History Sidebar */}
-      <HistorySidebar mode={mode} onLoadLessonPlan={handleLoadLessonPlan} />
+      <HistorySidebar
+        mode="lesson"
+        classId={selectedClassId}
+        chapterId={selectedChapterId}
+        onLoadLessonPlan={handleLoadLessonPlan}
+      />
     </div>
   );
 };

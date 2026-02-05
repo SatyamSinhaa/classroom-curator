@@ -10,6 +10,7 @@ router = APIRouter(prefix="/teachers", tags=["teachers"])
 
 class TeacherProfileUpdate(BaseModel):
     user_id: str
+    school_id: Optional[int] = None
     name: Optional[str] = None
     subjects: Optional[List[str]] = None
     classes: Optional[List[str]] = None
@@ -120,6 +121,8 @@ def create_or_update_teacher_profile(
 
     if teacher:
         # Update existing profile - only update provided fields
+        if profile_data.school_id is not None:
+            teacher.school_id = profile_data.school_id
         if profile_data.name is not None:
             teacher.name = profile_data.name
         if profile_data.subjects is not None:
@@ -139,6 +142,7 @@ def create_or_update_teacher_profile(
         # Create new profile with provided data
         teacher = Teacher(
             user_id=profile_data.user_id,
+            school_id=profile_data.school_id,
             name=profile_data.name or "Unknown",
             subjects=clean_list(profile_data.subjects),
             classes=clean_list(profile_data.classes),

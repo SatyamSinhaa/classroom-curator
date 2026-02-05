@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from ..database import get_db
 from ..models import LessonPlan, Teacher
 import sys
@@ -57,11 +57,16 @@ def get_teacher_topics(class_id: Optional[int] = None, current_teacher: Teacher 
         raise HTTPException(status_code=500, detail=f"Failed to fetch topics: {str(e)}")
 
 class LessonPlanRequest(BaseModel):
-    mode: str  # "topic" | "youtube"
+    mode: str  # "topic" | "youtube" | "chapter"
     topic: Optional[str] = None
     youtubeUrl: Optional[str] = None
+    chapterName: Optional[str] = None  # New: for chapter-based generation
+    subtopicNames: Optional[List[str]] = None  # New: selected subtopics
+    chapterId: Optional[int] = None  # New: chapter ID for progress tracking
+    subtopicIds: Optional[List[int]] = None  # New: subtopic IDs for progress tracking
     grade: Optional[int] = None
     subject: Optional[str] = None
+    board: Optional[str] = None  # New: education board
     classDurationMins: int
     existingPlan: Optional[Dict[str, Any]] = None
     refinementPrompt: Optional[str] = None
@@ -86,6 +91,17 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
                 raise HTTPException(status_code=400, detail="Topic text required for topic mode")
             text = request.topic
             source_type = "topic"
+            source_url = None
+        elif request.mode == "chapter":
+            if not request.chapterName:
+                raise HTTPException(status_code=400, detail="Chapter name required for chapter mode")
+            # Build text from chapter and subtopics
+            text = f"Chapter: {request.chapterName}\n\n"
+            if request.subtopicNames:
+                text += "Subtopics to cover:\n" + "\n".join(f"- {st}" for st in request.subtopicNames)
+            else:
+                text += "Cover all subtopics in this chapter."
+            source_type = "lesson"  # Use "lesson" as source type for chapter-based plans
             source_url = None
         # Tweak / Refine mode
         elif request.mode == "tweak":
@@ -150,13 +166,19 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
                 class_duration_mins=request.classDurationMins
             )
 
-        # Add source attribution if not present
-        if "sourceAttribution" not in lesson_plan_data:
             lesson_plan_data["sourceAttribution"] = {
                 "type": source_type,
                 "url": source_url,
                 "coverageNotes": f"Generated from {source_type} source"
             }
+        
+        # Ensure chapterId and other metadata are saved in content for filtering
+        if request.chapterId:
+            lesson_plan_data["chapterId"] = request.chapterId
+        if request.chapterName:
+             lesson_plan_data["chapterName"] = request.chapterName
+        if request.subtopicIds:
+             lesson_plan_data["subtopicIds"] = request.subtopicIds
 
         # Save to database with authenticated teacher ID
         lesson_plan = LessonPlan(
@@ -178,6 +200,24 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
         except Exception as e:
             print(f"Failed to upsert to vector DB: {str(e)}")
             # Don't fail the whole request if vector storage fails
+
+        # Record teaching progress if this is a chapter-based lesson plan
+        if request.mode == "chapter" and request.chapterId and request.subtopicIds and request.classId:
+            try:
+                from models.chapter_index import TeachingProgress
+                progress = TeachingProgress(
+                    teacher_id=current_teacher.id,
+                    chapter_id=request.chapterId,
+                    class_id=request.classId,
+                    subtopic_ids=request.subtopicIds,
+                    lesson_plan_id=lesson_plan.id
+                )
+                db.add(progress)
+                db.commit()
+                print(f"DEBUG: Recorded teaching progress for chapter {request.chapterId}")
+            except Exception as e:
+                print(f"Failed to record teaching progress: {str(e)}")
+                # Don't fail the whole request if progress recording fails
 
         # Return lesson plan with database ID
         response_data = lesson_plan_data.copy()
@@ -274,26 +314,57 @@ def get_lesson_plan(lesson_plan_id: int, db: Session = Depends(get_db)):
     return response_data
 
 @router.get("/history/{source_type}")
-def get_lesson_plan_history(source_type: str, current_teacher: Teacher = Depends(get_current_teacher), db: Session = Depends(get_db), limit: int = 10):
+def get_lesson_plan_history(
+    source_type: str, 
+    class_id: Optional[int] = None, 
+    chapter_id: Optional[int] = None,
+    current_teacher: Teacher = Depends(get_current_teacher), 
+    db: Session = Depends(get_db), 
+    limit: int = 10
+):
     """
-    Get lesson plan history for a specific source type (topic, pdf, youtube).
-    Returns the most recent lesson plans filtered by source_type.
+    Get lesson plan history for a specific source type (topic, pdf, youtube, lesson).
+    Returns the most recent lesson plans filtered by source_type and optionally class_id and chapter_id.
     """
-    if source_type not in ["topic", "pdf", "youtube"]:
-        raise HTTPException(status_code=400, detail="Invalid source type. Must be 'topic', 'pdf', or 'youtube'")
+    if source_type not in ["topic", "pdf", "youtube", "lesson"]:
+        raise HTTPException(status_code=400, detail="Invalid source type. Must be 'topic', 'pdf', 'youtube', or 'lesson'")
 
     try:
+        print(f"DEBUG: Fetching history for source_type={source_type}, class_id={class_id}, chapter_id={chapter_id}", flush=True)
         # Use raw SQL to avoid model column issues
         from sqlalchemy import text
 
-        query = text("""
+        sql_query = """
             SELECT id, title, content, source_url, source_type, created_at
             FROM lesson_plans
             WHERE source_type = :source_type AND user_id = :user_id
-            ORDER BY created_at DESC
-            LIMIT :limit
-        """)
-        result = db.execute(query, {"source_type": source_type, "user_id": current_teacher.id, "limit": limit})
+        """
+        
+        params = {"source_type": source_type, "user_id": current_teacher.id, "limit": limit}
+        
+        if class_id:
+            sql_query += " AND class_id = :class_id"
+            params["class_id"] = class_id
+
+        if chapter_id:
+            # Filter by chapterId inside the content JSON
+            # SQLite uses json_extract, PostgreSQL uses ->>
+            # Assuming SQLite for now based on file extensions seen
+            
+            # Check if using SQLite or PostgreSQL
+            dialect = db.bind.dialect.name
+            if dialect == 'postgresql':
+                 sql_query += " AND CAST(content ->> 'chapterId' AS INTEGER) = :chapter_id"
+            else:
+                 # SQLite
+                 sql_query += " AND json_extract(content, '$.chapterId') = :chapter_id"
+            
+            params["chapter_id"] = chapter_id
+            
+        sql_query += " ORDER BY created_at DESC LIMIT :limit"
+        
+        query = text(sql_query)
+        result = db.execute(query, params)
 
         rows = result.fetchall()
     except Exception as e:

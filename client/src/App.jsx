@@ -4,7 +4,7 @@ import MainLayout from './components/layout/MainLayout'
 import Dashboard from './pages/Dashboard'
 import LessonPlanner from './pages/LessonPlanner'
 import UnitPlanner from './pages/UnitPlanner'
-import YearPlan from './pages/YearPlan'
+import SyllabusTracker from './pages/SyllabusTracker'
 import CalendarPage from './pages/CalendarPage'
 import PromptAssistant from './pages/PromptAssistant'
 import ResearchAssistant from './pages/ResearchAssistant'
@@ -12,7 +12,8 @@ import Assessments from './pages/Assessments'
 import ReportCards from './pages/ReportCards'
 import Tools from './pages/Tools'
 import Profile from './pages/Profile'
-import LandingPage from './pages/LandingPage'
+import SchoolList from './pages/SchoolList'
+import SchoolDashboard from './pages/SchoolDashboard'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 
@@ -32,7 +33,9 @@ function App() {
       <div className="App">
         <Routes>
           {/* Public Routes */}
-          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/schools" replace />} />
+          <Route path="/schools" element={user ? <Navigate to="/dashboard" replace /> : <SchoolList />} />
+          <Route path="/schools/:schoolId/dashboard" element={user ? <Navigate to="/dashboard" replace /> : <SchoolDashboard />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
 
           {/* Protected Routes */}
@@ -42,7 +45,7 @@ function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="lessons" element={<LessonPlanner />} />
               <Route path="units" element={<UnitPlanner />} />
-              <Route path="year-plan" element={<YearPlan />} />
+              <Route path="syllabus-tracker" element={<SyllabusTracker />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="prompt-assistant" element={<PromptAssistant />} />
               <Route path="research" element={<ResearchAssistant />} />
@@ -52,7 +55,7 @@ function App() {
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           ) : (
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/schools" replace />} />
           )}
         </Routes>
       </div>

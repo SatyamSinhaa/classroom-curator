@@ -7,12 +7,28 @@ from .database import Base
 from models.planning import YearPlan, Term, Unit
 # Import quiz models
 from models.quiz import Quiz, QuizResponse, QuestionType, DifficultyLevel
+# Import chapter index models
+from models.chapter_index import ChapterIndex, Chapter, SubTopic, TeachingProgress
+
+class School(Base):
+    __tablename__ = "schools"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    address = Column(Text, nullable=True)
+    contact_email = Column(String(100), nullable=True)
+    contact_phone = Column(String(20), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship to teachers
+    teachers = relationship("Teacher", back_populates="school")
 
 class Teacher(Base):
     __tablename__ = "teachers"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(String(50), unique=True, nullable=True)  # Link to Supabase auth user
+    school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)  # Link to school
     name = Column(String(100), nullable=False)
     subjects = Column(JSON, nullable=True)  # List of subjects taught
     classes = Column(JSON, nullable=True)  # Legacy: List of class levels/grades
@@ -21,7 +37,8 @@ class Teacher(Base):
     experience_years = Column(Integer, nullable=True)  # Years of teaching experience
     qualifications = Column(JSON, nullable=True)  # Educational qualifications
 
-    # Relationship to Class model
+    # Relationships
+    school = relationship("School", back_populates="teachers")
     class_list = relationship("Class", back_populates="teacher", cascade="all, delete-orphan")
 
 class Class(Base):

@@ -1,22 +1,23 @@
 import { useState, useEffect } from 'react';
 import { getLessonPlanHistory, getLessonPlan } from '../api/lessonPlansApi';
 
-const HistorySidebar = ({ mode, onLoadLessonPlan }) => {
+const HistorySidebar = ({ mode, classId, chapterId, onLoadLessonPlan }) => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchHistory();
-  }, [mode]);
+  }, [mode, classId, chapterId]);
 
   const fetchHistory = async () => {
     if (!mode) return;
+    console.log(`Fetching history for mode: ${mode}, classId: ${classId}, chapterId: ${chapterId}`);
 
     setLoading(true);
     setError('');
     try {
-      const data = await getLessonPlanHistory(mode);
+      const data = await getLessonPlanHistory(mode, classId, chapterId);
       setHistory(data.history || []);
     } catch (err) {
       setError(err.message);
@@ -44,6 +45,7 @@ const HistorySidebar = ({ mode, onLoadLessonPlan }) => {
       case 'topic': return 'Topic Description';
       case 'pdf': return 'PDF Upload';
       case 'youtube': return 'YouTube Video';
+      case 'lesson': return 'Lesson Plan';
       default: return mode;
     }
   };
