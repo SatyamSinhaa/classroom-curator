@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Edit2, Save, X, BookOpen, Users, Award, GraduationCap } from 'lucide-react';
+import { LogOut, Edit2, Save, X, BookOpen, Users, Award, GraduationCap, Settings } from 'lucide-react';
+import TTSSettings from '../components/TTSSettings';
 
 const Profile = () => {
   const { signOut, user } = useAuth();
@@ -414,38 +415,55 @@ const Profile = () => {
           </section>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-8 pt-6 border-t border-gray-200 flex justify-between">
-          {isEditing ? (
-            <div className="space-x-4 flex">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
-              </button>
-              <button
-                onClick={handleCancel}
-                className="flex items-center space-x-2 px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-              >
-                <X className="w-4 h-4" />
-                <span>Cancel</span>
-              </button>
+        {/* App Preferences */}
+        <section>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <Settings className="w-5 h-5 mr-2" />
+            App Preferences
+          </h2>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-gray-900">Text-to-Speech Voice</h3>
+                <p className="text-sm text-gray-600">Configure the voice and speed for reading lesson plans aloud.</p>
+              </div>
+              <TTSSettings />
             </div>
-          ) : (
-            <div />
-          )}
+          </div>
+        </section>
+      </div>
 
-          <button
-            onClick={handleSignOut}
-            className="flex items-center space-x-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Sign Out</span>
-          </button>
-        </div>
+      {/* Action Buttons */}
+      <div className="mt-8 pt-6 border-t border-gray-200 flex justify-between">
+        {isEditing ? (
+          <div className="space-x-4 flex">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+            </button>
+            <button
+              onClick={handleCancel}
+              className="flex items-center space-x-2 px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+            >
+              <X className="w-4 h-4" />
+              <span>Cancel</span>
+            </button>
+          </div>
+        ) : (
+          <div />
+        )}
+
+        <button
+          onClick={handleSignOut}
+          className="flex items-center space-x-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </div>
   );

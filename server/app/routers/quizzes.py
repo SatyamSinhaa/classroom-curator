@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, Dict
+from typing import Optional, Dict, Union, List
 from ..database import get_db
 from ..models import Quiz, QuestionType, DifficultyLevel
 import sys
@@ -32,7 +32,7 @@ class QuizSaveRequest(BaseModel):
     lesson_plan_id: Optional[int] = None
     context: Optional[str] = ""
     questions_data: dict
-    answer_key: dict
+    answer_key: Union[list, dict, None] = None
 
 quiz_generator = QuizGenerator()
 pdf_generator = QuizPDFGenerator()

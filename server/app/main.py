@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import teachers, lesson_plans, year_plans, quizzes, classes, schools, chapter_index
+from .routers import teachers, lesson_plans, year_plans, quizzes, classes, schools, chapter_index, tts
 # Import models to ensure they're registered with Base
 import sys
 import os
@@ -30,6 +30,7 @@ app.include_router(year_plans.router)
 app.include_router(quizzes.router)
 app.include_router(classes.router)
 app.include_router(chapter_index.router)
+app.include_router(tts.router)
 
 @app.get("/")
 def read_root():

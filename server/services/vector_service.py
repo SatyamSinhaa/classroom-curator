@@ -63,46 +63,89 @@ def chunk_lesson_plan(lesson_plan_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         "metadata": {"type": "header", "path": "header"}
     })
     
-    # 2. Sessions
-    for s_idx, session in enumerate(lesson_plan_data.get("sessions", [])):
-        session_num = session.get("sessionNumber")
-        session_topic = session.get("topic")
-        
-        # Timeline items
-        for i, item in enumerate(session.get("timeline", [])):
-            item_num = item.get('itemNumber', i + 1)
-            item_text = f"Day {session_num}, Point {item_num}: {session_topic}\n"
-            item_text += f"Activity: {item.get('activity')}\n"
-            item_text += f"Duration: {item.get('duration')} mins\n"
-            item_text += f"Teacher Script: {item.get('teacherScript')}"
+    # 2. Sessions / Subtopic Sections
+    # Handle legacy sessions
+    if "sessions" in lesson_plan_data:
+        for s_idx, session in enumerate(lesson_plan_data.get("sessions", [])):
+            session_num = session.get("sessionNumber")
+            session_topic = session.get("topic")
             
-            chunks.append({
-                "id": f"session_{session_num}_item_{item_num}",
-                "text": item_text,
-                "metadata": {
-                    "type": "timeline",
-                    "sessionNumber": session_num,
-                    "itemNumber": item_num,
-                    "path": f"sessions[{s_idx}].timeline[{i}]"
-                }
-            })
+            # Timeline items
+            for i, item in enumerate(session.get("timeline", [])):
+                item_num = item.get('itemNumber', i + 1)
+                item_text = f"Day {session_num}, Point {item_num}: {session_topic}\n"
+                item_text += f"Activity: {item.get('activity')}\n"
+                item_text += f"Duration: {item.get('duration')} mins\n"
+                item_text += f"Teacher Script: {item.get('teacherScript')}"
+                
+                chunks.append({
+                    "id": f"session_{session_num}_item_{item_num}",
+                    "text": item_text,
+                    "metadata": {
+                        "type": "timeline",
+                        "sessionNumber": session_num,
+                        "itemNumber": item_num,
+                        "path": f"sessions[{s_idx}].timeline[{i}]"
+                    }
+                })
+                
+            # Homework
+            if session.get("homework"):
+                hw = session.get("homework")
+                hw_text = f"Session {session_num} Homework:\n"
+                hw_text += f"Instructions: {hw.get('instructions')}\n"
+                hw_text += "Questions:\n" + "\n".join(hw.get("questions", []))
+                
+                chunks.append({
+                    "id": f"session_{session_num}_homework",
+                    "text": hw_text,
+                    "metadata": {
+                        "type": "homework", 
+                        "sessionNumber": session_num,
+                        "path": f"sessions[{s_idx}].homework"
+                    }
+                })
+
+    # Handle NEW subtopic sections
+    if "subtopicSections" in lesson_plan_data:
+        for s_idx, section in enumerate(lesson_plan_data.get("subtopicSections", [])):
+            subtopic_name = section.get("subtopic")
             
-        # Homework
-        if session.get("homework"):
-            hw = session.get("homework")
-            hw_text = f"Session {session_num} Homework:\n"
-            hw_text += f"Instructions: {hw.get('instructions')}\n"
-            hw_text += "Questions:\n" + "\n".join(hw.get("questions", []))
-            
-            chunks.append({
-                "id": f"session_{session_num}_homework",
-                "text": hw_text,
-                "metadata": {
-                    "type": "homework", 
-                    "sessionNumber": session_num,
-                    "path": f"sessions[{s_idx}].homework"
-                }
-            })
+            # Timeline items
+            for i, item in enumerate(section.get("timeline", [])):
+                item_num = item.get('itemNumber', i + 1)
+                item_text = f"Subtopic: {subtopic_name}, Point {item_num}\n"
+                item_text += f"Activity: {item.get('activity')}\n"
+                item_text += f"Duration: {item.get('duration')} mins\n"
+                item_text += f"Teacher Script: {item.get('teacherScript')}"
+                
+                chunks.append({
+                    "id": f"subtopic_{s_idx}_item_{item_num}",
+                    "text": item_text,
+                    "metadata": {
+                        "type": "timeline",
+                        "subtopicIndex": s_idx,
+                        "itemNumber": item_num,
+                        "path": f"subtopicSections[{s_idx}].timeline[{i}]"
+                    }
+                })
+                
+            # Homework
+            if section.get("homework"):
+                hw = section.get("homework")
+                hw_text = f"Subtopic {subtopic_name} Homework:\n"
+                hw_text += f"Instructions: {hw.get('instructions')}\n"
+                hw_text += "Questions:\n" + "\n".join(hw.get("questions", []))
+                
+                chunks.append({
+                    "id": f"subtopic_{s_idx}_homework",
+                    "text": hw_text,
+                    "metadata": {
+                        "type": "homework", 
+                        "subtopicIndex": s_idx,
+                        "path": f"subtopicSections[{s_idx}].homework"
+                    }
+                })
             
     # 3. Discussion Questions
     for i, dq in enumerate(lesson_plan_data.get("discussionQuestions", [])):

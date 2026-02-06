@@ -25,7 +25,7 @@ const LessonPlanner = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [teacherProfile, setTeacherProfile] = useState(null);
-  const [classDuration, setClassDuration] = useState(40);
+
 
   // Load classes and teacher profile on mount
   useEffect(() => {
@@ -170,7 +170,6 @@ const LessonPlanner = () => {
         grade: selectedClass.grade,
         subject: selectedClass.subject,
         board: teacherProfile?.board || 'CBSE',
-        classDurationMins: parseInt(classDuration),
         classId: parseInt(selectedClassId)
       };
 
@@ -222,24 +221,9 @@ const LessonPlanner = () => {
                 </select>
 
                 {selectedClass && teacherProfile && (
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className="text-sm text-gray-600">
-                      <p>Subject: <span className="font-medium">{selectedClass.subject}</span></p>
-                      <p>Board: <span className="font-medium">{teacherProfile.board || 'Not set'}</span></p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Class Duration (mins)
-                      </label>
-                      <input
-                        type="number"
-                        value={classDuration}
-                        onChange={(e) => setClassDuration(e.target.value)}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        min="10"
-                        max="240"
-                      />
-                    </div>
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p>Subject: <span className="font-medium">{selectedClass.subject}</span></p>
+                    <p>Board: <span className="font-medium">{teacherProfile.board || 'Not set'}</span></p>
                   </div>
                 )}
               </div>

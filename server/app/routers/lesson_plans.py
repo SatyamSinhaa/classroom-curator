@@ -67,7 +67,7 @@ class LessonPlanRequest(BaseModel):
     grade: Optional[int] = None
     subject: Optional[str] = None
     board: Optional[str] = None  # New: education board
-    classDurationMins: int
+    classDurationMins: Optional[int] = None  # Made optional for subtopic-based generation
     existingPlan: Optional[Dict[str, Any]] = None
     refinementPrompt: Optional[str] = None
     lessonPlanId: Optional[int] = None
@@ -179,6 +179,22 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
              lesson_plan_data["chapterName"] = request.chapterName
         if request.subtopicIds:
              lesson_plan_data["subtopicIds"] = request.subtopicIds
+        
+        # Inject Subject, Grade, and Board into the content for history display
+        lesson_plan_data["subject"] = request.subject or "General"
+        lesson_plan_data["grade"] = request.grade or 5
+        if request.board:
+            lesson_plan_data["board"] = request.board
+
+        # Improve Title for Chapter/Subtopic mode
+        if request.mode == "chapter":
+            if request.subtopicNames and len(request.subtopicNames) == 1:
+                 # If single subtopic, use it as title
+                 lesson_plan_data["title"] = request.subtopicNames[0]
+            elif request.chapterName:
+                 # Use Chapter name
+                 lesson_plan_data["title"] = request.chapterName
+
 
         # Save to database with authenticated teacher ID
         lesson_plan = LessonPlan(

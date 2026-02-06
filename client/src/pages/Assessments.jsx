@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { generateQuiz } from '../api/quizzesApi';
+import { generateQuiz, saveQuiz, downloadPDF } from '../api/quizzesApi';
 import { getClasses } from '../api/classesApi';
 import { getTeacherProfile } from '../api/teachersApi';
 import { getOrGenerateChapterIndex, getTeachingProgress } from '../api/chapterIndexApi';
@@ -346,8 +346,8 @@ const Assessments = () => {
                                 key={st.id}
                                 onClick={() => handleSubtopicToggle(st.id)}
                                 className={`flex items-start p-3 rounded-md border cursor-pointer transition-all ${isSelected
-                                    ? 'bg-blue-50 border-blue-200'
-                                    : 'bg-white border-gray-200 hover:border-gray-300'
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : 'bg-white border-gray-200 hover:border-gray-300'
                                   }`}
                               >
                                 <div className={`mt-0.5 mr-3 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-300'}`}>
@@ -436,12 +436,50 @@ const Assessments = () => {
                   >
                     ← Back to Settings
                   </button>
-                  <button
-                    onClick={() => window.print()}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    🖨️ Print Quiz
-                  </button>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (!generatedQuiz || !generatedQuiz.questions_data) return;
+
+                          // Prepare data for saving
+                          const quizData = {
+                            topic: generatedQuiz.questions_data.quiz_title || "Assessment",
+                            subject: formData.subject,
+                            grade: parseInt(formData.grade),
+                            difficulty: formData.difficulty,
+                            question_types: Object.entries(selectedTypes)
+                              .filter(([_, isSelected]) => isSelected)
+                              .reduce((acc, [type, _]) => ({ ...acc, [type]: questionCounts[type] }), {}),
+                            context: formData.context,
+                            questions_data: generatedQuiz.questions_data,
+                            answer_key: generatedQuiz.answer_key
+                          };
+
+                          // 1. Save Quiz
+                          const savedQuiz = await saveQuiz(quizData);
+
+                          // 2. Download PDF
+                          if (savedQuiz?.id) {
+                            await downloadPDF(savedQuiz.id);
+                          }
+
+                        } catch (err) {
+                          console.error("Failed to save and download:", err);
+                          alert("Failed to save and download PDF. Please try again.");
+                        }
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                    >
+                      💾 Save & Download PDF
+                    </button>
+                    <button
+                      onClick={() => window.print()}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                    >
+                      🖨️ Print View
+                    </button>
+                  </div>
                 </div>
 
                 <div className="quiz-content">

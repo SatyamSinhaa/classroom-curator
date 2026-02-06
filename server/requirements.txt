@@ -13,3 +13,4 @@ reportlab==4.0.7
 openai>=1.0.0
 cryptography
 pinecone
+edge-tts

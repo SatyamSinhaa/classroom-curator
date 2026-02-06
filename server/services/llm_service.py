@@ -233,12 +233,13 @@ TEACHER'S REFINEMENT REQUEST:
 METADATA:
 - Grade: {grade}
 - Subject: {subject}
-- Class Session Duration: {class_duration_mins} minutes
 
 YOUR TASK:
 Modify the Lesson Plan according to the TEACHER'S REFINEMENT REQUEST. 
-Maintain the same JSON structure. Improve the content while keeping the teacher's desired changes in mind.
-Ensure the total time and session structure still follow the Class Session Duration ({class_duration_mins} mins).
+Maintain the same JSON structure (either 'subtopicSections' or 'sessions' depending on what exists in the plan).
+Improve the content while keeping the teacher's desired changes in mind.
+If the plan uses 'subtopicSections', maintain the subtopic names and time estimates.
+If the plan uses 'sessions', maintain the session structure and timing.
 """
     else:
         # Summarize long text to prevent API limits - leave more room for response
@@ -256,25 +257,28 @@ METADATA:
 
 Create an ENGAGING, INTERACTIVE full lesson plan that will captivate grade {grade} students.
 
+
 IMPORTANT GUIDELINES:
-1. ESTIMATE TOTAL TIME: Estimate how many total minutes are reasonably required to teach this topic effectively based on its complexity.
-2. SESSIONS / ALL DAYS: You MUST provide the full plan for ALL days required to cover the topic. 
-   - Example: If you estimate 120 minutes and the class duration is 40 minutes, you MUST generate THREE sessions (Day 1, Day 2, and Day 3).
-   - DO NOT stop after Day 1. You must provide the complete curriculum for all estimated minutes.
-3. SESSION LIMIT: Each session's timeline must not exceed the Class Session Duration ({class_duration_mins} mins).
-4. PROPORTIONAL TIMING: Within each session, divide the time proportionally based on the importance and difficulty of sub-topics.
-5. SERIAL NUMBERS: Each activity in the timeline MUST have a sequential `itemNumber` starting from 1 for each session.
-6. ENGAGEMENT: Use REAL-LIFE examples, HANDS-ON activities, and student participation. Make the teacher script CONVERSATIONAL and ENTHUSIASTIC.
+1. SUBTOPIC-BASED STRUCTURE: Generate content organized by SUBTOPICS, NOT by days or sessions.
+2. CLEAR SUBTOPIC NAMES: Each section MUST clearly show which subtopic it belongs to in the "subtopic" field.
+   - Example: "Subtopic: Descriptive Adjectives - The Sensory Experience"
+   - Teachers need to immediately understand which subtopic each section covers.
+3. TIME ESTIMATES: For each subtopic section, provide:
+   - estimatedMins: Total estimated minutes needed to teach this subtopic
+   - Each activity should have a duration in minutes
+4. ENGAGEMENT: Use REAL-LIFE examples, HANDS-ON activities, and student participation. Make the teacher script CONVERSATIONAL and ENTHUSIASTIC.
+5. SERIAL NUMBERS: Each activity in the timeline MUST have a sequential `itemNumber` starting from 1 for each subtopic.
+
 
 REQUIRED JSON FORMAT:
 {{
-  "title": "string",
+  "title": "string (overall lesson/chapter title)",
   "estimatedTotalMins": number,
   "learningObjectives": ["string"],
-  "sessions": [
+  "subtopicSections": [
     {{
-      "sessionNumber": number,
-      "topic": "string",
+      "subtopic": "string (MUST clearly state the subtopic name)",
+      "estimatedMins": number,
       "timeline": [
         {{
           "itemNumber": number,
@@ -378,15 +382,15 @@ TEACHER'S REFINEMENT REQUEST:
 METADATA:
 - Grade: {grade}
 - Subject: {subject}
-- Class Session Duration: {class_duration_mins} minutes
 
 YOUR TASK:
 Refine ONLY the sections provided above to satisfy the teacher's request. 
-CRITICAL: The changes must be NOTYCEABLE and EFFECTIVE. Do not just return the same text. 
+CRITICAL: The changes must be NOTICEABLE and EFFECTIVE. Do not just return the same text. 
 If the teacher asks to "make it more hands-on", rewrite the activity and script to be significantly more interactive.
 IMPORTANT: You MUST return the FULL JSON OBJECT for each section being modified. 
 Do not omit any fields like 'itemNumber', 'activity', or 'duration'. 
 Maintain the same internal structure for each section.
+The plan may use either 'subtopicSections' or 'sessions' - maintain whichever structure exists.
 Return a JSON object with a list of patches. 
 DO NOT include any introductory text, markdown code blocks, or explanations. 
 
@@ -471,8 +475,10 @@ def apply_patches(original_plan: Dict[str, Any], patches_data: Dict[str, Any]) -
                         new_plan["learningObjectives"] = content["learningObjectives"]
                 continue
                 
-            # Parse sessions[i]...
+            # Parse sessions[i]... or subtopicSections[i]...
             session_match = re.match(r"sessions\[(\d+)\]", path)
+            subtopic_match = re.match(r"subtopicSections\[(\d+)\]", path)
+            
             if session_match:
                 s_idx = int(session_match.group(1))
                 if s_idx >= len(new_plan.get("sessions", [])): continue
@@ -495,6 +501,29 @@ def apply_patches(original_plan: Dict[str, Any], patches_data: Dict[str, Any]) -
                     merged, changed = merge_content(new_plan["sessions"][s_idx]["homework"], content, path)
                     if changed: merged["isUpdated"] = True
                     new_plan["sessions"][s_idx]["homework"] = merged
+            
+            elif subtopic_match:
+                s_idx = int(subtopic_match.group(1))
+                if s_idx >= len(new_plan.get("subtopicSections", [])): continue
+                
+                remaining = path[len(subtopic_match.group(0)):].strip(".")
+                
+                if not remaining:
+                    merged, changed = merge_content(new_plan["subtopicSections"][s_idx], content, path)
+                    if changed: merged["isUpdated"] = True
+                    new_plan["subtopicSections"][s_idx] = merged
+                elif remaining.startswith("timeline"):
+                    timeline_match = re.match(r"timeline\[(\d+)\]", remaining)
+                    if timeline_match:
+                        t_idx = int(timeline_match.group(1))
+                        if t_idx < len(new_plan["subtopicSections"][s_idx].get("timeline", [])):
+                            merged, changed = merge_content(new_plan["subtopicSections"][s_idx]["timeline"][t_idx], content, path)
+                            if changed: merged["isUpdated"] = True
+                            new_plan["subtopicSections"][s_idx]["timeline"][t_idx] = merged
+                elif remaining == "homework":
+                    merged, changed = merge_content(new_plan["subtopicSections"][s_idx]["homework"], content, path)
+                    if changed: merged["isUpdated"] = True
+                    new_plan["subtopicSections"][s_idx]["homework"] = merged
                     
             elif path.startswith("discussionQuestions"):
                 dq_match = re.match(r"discussionQuestions\[(\d+)\]", path)
