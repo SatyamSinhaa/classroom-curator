@@ -82,12 +82,14 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
                     return (
                       <div
                         key={index}
-                        className={`relative border-l-4 border-blue-500 pl-4 py-2 bg-white rounded-r-md shadow-sm transition-all duration-200 ${isCompleted ? 'opacity-50' : 'opacity-100'
-                          }`}
+                        className={`relative border-l-4 pl-4 py-2 rounded-r-md shadow-sm transition-all duration-200 
+                          ${item.isUpdated ? 'bg-purple-50 border-purple-500' : 'bg-white border-blue-500'} 
+                          ${isCompleted ? 'opacity-50' : 'opacity-100'}
+                        `}
                       >
                         {item.isUpdated && (
-                          <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-200 animate-pulse z-10">
-                            ✨ Updated by AI
+                          <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold border border-purple-200 animate-pulse z-10 shadow-sm flex items-center">
+                            <span className="mr-1">✨</span> Updated by AI
                           </span>
                         )}
                         <div className="flex items-start mb-2">
@@ -96,12 +98,12 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
                               type="checkbox"
                               checked={!!isCompleted}
                               onChange={() => toggleItemCompletion(sIndex, index)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                              className={`h-4 w-4 focus:ring-2 border-gray-300 rounded cursor-pointer ${item.isUpdated ? 'text-purple-600 focus:ring-purple-500' : 'text-blue-600 focus:ring-blue-500'}`}
                             />
                           </div>
                           <div className="ml-3 flex-1">
                             <div className="flex items-center mb-1">
-                              <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${item.isUpdated ? 'bg-purple-500 text-white' : 'bg-blue-500 text-white'}`}>
                                 Point {item.itemNumber || index + 1} | {item.minute} min (+{item.duration}m)
                               </span>
                               <span className={`ml-3 font-semibold ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
@@ -123,10 +125,10 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
 
                 {/* Homework for Subtopic */}
                 {section.homework && (
-                  <div className="relative mt-4 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <div className={`relative mt-4 p-4 rounded-lg border shadow-sm transition-colors ${section.homework.isUpdated ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-100'}`}>
                     {section.homework.isUpdated && (
-                      <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-200 animate-pulse z-10">
-                        ✨ Updated by AI
+                      <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold border border-purple-200 animate-pulse z-10 shadow-sm flex items-center">
+                        <span className="mr-1">✨</span> Updated by AI
                       </span>
                     )}
                     <h5 className="font-semibold text-gray-800 mb-2 flex items-center justify-between">
@@ -173,12 +175,14 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
                     return (
                       <div
                         key={index}
-                        className={`relative border-l-4 border-blue-500 pl-4 py-2 bg-white rounded-r-md shadow-sm transition-all duration-200 ${isCompleted ? 'opacity-50' : 'opacity-100'
-                          }`}
+                        className={`relative border-l-4 pl-4 py-2 rounded-r-md shadow-sm transition-all duration-200
+                          ${item.isUpdated ? 'bg-purple-50 border-purple-500' : 'bg-white border-blue-500'}
+                          ${isCompleted ? 'opacity-50' : 'opacity-100'}
+                        `}
                       >
                         {item.isUpdated && (
-                          <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-200 animate-pulse z-10">
-                            ✨ Updated by AI
+                          <span className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold border border-purple-200 animate-pulse z-10 shadow-sm flex items-center">
+                            <span className="mr-1">✨</span> Updated by AI
                           </span>
                         )}
                         <div className="flex items-start mb-2">
@@ -187,12 +191,12 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
                               type="checkbox"
                               checked={!!isCompleted}
                               onChange={() => toggleItemCompletion(sIndex, index)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                              className={`h-4 w-4 focus:ring-2 border-gray-300 rounded cursor-pointer ${item.isUpdated ? 'text-purple-600 focus:ring-purple-500' : 'text-blue-600 focus:ring-blue-500'}`}
                             />
                           </div>
                           <div className="ml-3 flex-1">
                             <div className="flex items-center mb-1">
-                              <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${item.isUpdated ? 'bg-purple-500 text-white' : 'bg-blue-500 text-white'}`}>
                                 Point {item.itemNumber || index + 1} | {item.minute} min (+{item.duration}m)
                               </span>
                               <span className={`ml-3 font-semibold ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
@@ -427,6 +431,17 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
           onClick={async () => {
             if (!aiRefinePrompt.trim()) return;
 
+            // Validate required metadata
+            if (!lessonPlan.subject || !lessonPlan.grade) {
+              alert("Error: Lesson plan is missing required metadata (subject or grade). Please regenerate the lesson plan or select a class first.");
+              return;
+            }
+
+            if (!lessonPlan.id) {
+              alert("Error: Lesson plan ID is missing. This lesson plan may not have been saved properly.");
+              return;
+            }
+
             const sectionNum = selectedDay !== '' ? parseInt(selectedDay) + 1 : null;
             const pointNum = selectedPoint !== '' ? parseInt(selectedPoint) + 1 : null;
 
@@ -471,9 +486,19 @@ const LessonPlanOutput = ({ lessonPlan: initialLessonPlan, onRegenerate, loading
                 refinementPrompt: refinementPrompt,
                 subject: lessonPlan.subject,
                 grade: lessonPlan.grade,
+                board: lessonPlan.board,
                 classDurationMins: duration
               });
-              setLessonPlan(result);
+
+              // Enrich the refined result with metadata to ensure it persists
+              const enrichedResult = {
+                ...result,
+                subject: result.subject || lessonPlan.subject,
+                grade: result.grade || lessonPlan.grade,
+                board: result.board || lessonPlan.board
+              };
+
+              setLessonPlan(enrichedResult);
               setAiRefinePrompt('');
               setSelectedDay('');
               setSelectedPoint('');

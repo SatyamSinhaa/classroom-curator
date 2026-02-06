@@ -174,7 +174,16 @@ const LessonPlanner = () => {
       };
 
       const result = await generateLessonPlan(data);
-      setLessonPlan(result);
+
+      // Enrich lesson plan with metadata for refinement
+      const enrichedLessonPlan = {
+        ...result,
+        subject: result.subject || selectedClass.subject,
+        grade: result.grade || selectedClass.grade,
+        board: result.board || teacherProfile?.board || 'CBSE'
+      };
+
+      setLessonPlan(enrichedLessonPlan);
 
       // Refresh teaching progress
       const progressData = await getTeachingProgress(parseInt(selectedClassId));
@@ -189,7 +198,15 @@ const LessonPlanner = () => {
   };
 
   const handleLoadLessonPlan = (lessonPlanData) => {
-    setLessonPlan(lessonPlanData);
+    // Enrich historical lesson plan with current context metadata if missing
+    const enrichedLessonPlan = {
+      ...lessonPlanData,
+      subject: lessonPlanData.subject || selectedClass?.subject,
+      grade: lessonPlanData.grade || selectedClass?.grade,
+      board: lessonPlanData.board || teacherProfile?.board || 'CBSE'
+    };
+
+    setLessonPlan(enrichedLessonPlan);
   };
 
   return (

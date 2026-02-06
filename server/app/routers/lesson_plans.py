@@ -118,8 +118,19 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
                     for i, m in enumerate(matches):
                         print(f"  Match {i+1}: Score={m['score']:.4f}, Path={m.get('path')}")
                 except Exception as e:
-                    print(f"Vector search failed: {str(e)}")
+                    print(f"Vector search failed (non-critical): {str(e)}")
+                    matches = []
             
+            # FALLBACK: If vector search found nothing (or failed), use the WHOLE plan as context
+            # This ensures we still do "Atomic Refinement" which preserves the 'isUpdated' flags
+            if not matches and request.existingPlan:
+                print("DEBUG: No vector matches found. Falling back to Full-Document Patching.")
+                matches = [{
+                    "text": json.dumps(request.existingPlan, indent=2),
+                    "path": "root", 
+                    "score": 1.0
+                }]
+
             lesson_plan_data = None
             if matches and request.existingPlan:
                 try:
@@ -138,6 +149,7 @@ def generate_lesson_plan(request: LessonPlanRequest, current_teacher: Teacher = 
                     print("DEBUG: Atomic refinement successful.")
                 except Exception as e:
                     print(f"Atomic refinement failed, falling back to full generation: {str(e)}")
+                    # If patching fails completely, we'll fall through to full generation below
             
             if not lesson_plan_data:
                 print("DEBUG: Falling back to full Plan Generation strategy.")
